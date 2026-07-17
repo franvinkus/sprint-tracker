@@ -5,7 +5,7 @@
   },
   "include": [
     "App.tsx",
-    "app.d.ts",
+    "global.d.ts",
     "**/*.ts",
     "**/*.tsx"
   ]
