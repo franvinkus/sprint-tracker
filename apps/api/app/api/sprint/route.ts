@@ -4,18 +4,15 @@ import { JWT } from 'google-auth-library';
 
 export async function GET() {
   try {
-    // 1. Setup Autentikasi
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
       key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    // 2. Hubungkan ke Spreadsheet
     const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID!, serviceAccountAuth);
     await doc.loadInfo(); 
 
-    // 3. Ambil Tab Pertama (Index 0)
     const sheetTitle = doc.sheetsByIndex[1].title;
     const range = `'${sheetTitle}'!B9:I`;
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.SPREADSHEET_ID}/values/${encodeURIComponent(range)}`;
@@ -23,7 +20,6 @@ export async function GET() {
     const response = await serviceAccountAuth.request({ url });
     const rows = (response.data as any).values || [];
 
-    // 4. Mapping Data
     const taskList = rows.map((row: any[]) => ({
       taskId: row[0] || '',       // Kolom B: CODE
       taskName: row[1] || '',     // Kolom C: TASK NAME
@@ -39,7 +35,6 @@ export async function GET() {
       return task.taskId && task.taskId.includes('/');
     });
 
-    // 5. Kembalikan Response Sukses
     return NextResponse.json({ 
       namaTabYangDibaca: sheetTitle, 
       dataMentah: cleanTaskList 
