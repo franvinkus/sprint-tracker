@@ -2,37 +2,53 @@ import { NextResponse } from 'next/server';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 
+function getAuth() {
+  return new JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+}
+
 export async function GET() {
   try {
-    const serviceAccountAuth = new JWT({
-      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
 
-    const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID!, serviceAccountAuth);
+    const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID!, getAuth());
     await doc.loadInfo(); 
 
-    const sheetTitle = doc.sheetsByIndex[1].title;
-    const range = `'${sheetTitle}'!B9:I`;
+    const sheetTitle = 'TASK LIST';
+    const range = `'${sheetTitle}'!B9:V`;
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.SPREADSHEET_ID}/values/${encodeURIComponent(range)}`;
 
-    const response = await serviceAccountAuth.request({ url });
+    const response = await getAuth().request({ url });
     const rows = (response.data as any).values || [];
 
     const taskList = rows.map((row: any[]) => ({
-      taskId: row[0] || '',       // Kolom B: CODE
-      taskName: row[1] || '',     // Kolom C: TASK NAME
-      requestor: row[2] || '',    // Kolom D: REQUESTOR
-      developer: row[3] || '',    // Kolom E: Developer
-      department: row[4] || '',   // Kolom F: DEPT
-      status: row[5] || '',       // Kolom G: STATUS
-      storyPoints: row[6] || '',  // Kolom H: STORY POINTS
-      progressPoints: row[7] || '', // Kolom I: Recent of Story Point
+      code: row[0] || '',                 // Column 1: CODE
+      reporter: row[1] || '',             // Column 2: Reporter / Requestor
+      developer: row[2] || '',            // Column 3: Developer
+      taskName: row[3] || '',             // Column 4: TASK NAME
+      subjectMail: row[4] || '',          // Column 5: Subject Mail / Description
+      supportTicket: row[5] || '',        // Column 6: Support Ticket
+      module: row[6] || '',               // Column 7: Module
+      subModule: row[7] ? row[7].split(',').map((item: string) => item.trim()) : [],            // Column 8: Sub Module
+      kompleksitas: row[8] || '',         // Column 9: Kompleksitas
+      issueCategory: row[9] || '',        // Column 10: Issue Category
+      status: row[10] || '',              // Column 11: STATUS
+      submissionDate: row[11] || '',      // Column 12: Submission Date
+      completionTarget: row[12] || '',    // Column 13: Completion Target
+      actualStart: row[13] || '',         // Column 14: Actual Start
+      actualCompletion: row[14] || '',    // Column 15: Actual Completion
+      holdDate: row[15] || '',            // Column 16: Hold Date
+      holdDuration: row[16] || '',        // Column 17: Hold Duration (Days)
+      sla: row[17] || '',                 // Column 18: SLA
+      taskAging: row[18] || '',           // Column 19: TASK AGING
+      channelSource: row[19] || '',       // Column 20: Channel Source
+      remark: row[20] || '',              // Column 21: REMARK / KNOWLEDGE BASE
     }));
 
     const cleanTaskList = taskList.filter((task: any) => {
-      return task.taskId && task.taskId.includes('/');
+      return task.code && task.code.includes('/');
     });
 
     return NextResponse.json({ 
@@ -44,6 +60,60 @@ export async function GET() {
     console.error("Terjadi error saat menarik data:", error);
     return NextResponse.json(
       { error: 'Gagal mengambil data dari Spreadsheet', details: error.message }, 
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID!, getAuth());
+    await doc.loadInfo(); 
+
+    const sheet = doc.sheetsByTitle['TASK LIST'];
+    
+    if (!sheet) {
+      return NextResponse.json(
+        { success: false, message: 'Tab TASK LIST tidak ditemukan di Sheets' }, 
+        { status: 404 }
+      );
+    }
+
+    await sheet.addRow([
+      body.code || '',                     // Column 1: CODE
+      body.reporter || '',                 // Column 2: Reporter
+      body.assignee || body.developer || '', // Column 3: Developer (bisa dari assignee modal)
+      body.taskName || '',                 // Column 4: TASK NAME
+      body.description || body.subjectMail || '', // Column 5: Subject / Description
+      body.supportTicket || '',            // Column 6: Support Ticket
+      body.module || '',                   // Column 7: Module
+      body.subModule || '',                // Column 8: Sub Module
+      body.kompleksitas || '',             // Column 9: Kompleksitas
+      body.issueCategory || '',            // Column 10: Issue Category
+      body.status || 'TO DO',              // Column 11: STATUS
+      body.submissionDate || '',           // Column 12: Submission Date
+      body.completionTarget || '',         // Column 13: Completion Target
+      body.actualStart || '',              // Column 14: Actual Start
+      body.actualCompletion || '',         // Column 15: Actual Completion
+      body.holdDate || '',                 // Column 16: Hold Date
+      body.holdDuration || '',             // Column 17: Hold Duration
+      body.slaStatus || body.sla || '',    // Column 18: SLA
+      body.taskAging || '',                // Column 19: TASK AGING
+      body.channelSource || '',            // Column 20: Channel Source
+      body.remark || ''                    // Column 21: REMARK
+    ]);
+
+    
+    return NextResponse.json({ 
+      status: 'Success',
+      message: 'Task baru berhasil ditambahkan' 
+    }, { status: 201 });
+    
+  } catch (error: any) {
+    console.error("Terjadi error saat menambah data:", error);
+    return NextResponse.json(
+      { error: 'Gagal menambah data ke Spreadsheet', details: error.message }, 
       { status: 500 }
     );
   }

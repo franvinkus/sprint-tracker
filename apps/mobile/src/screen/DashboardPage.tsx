@@ -16,7 +16,7 @@ import {
 interface UserProps {
   user: {
     username: string;
-    department: string;
+    department: string; // Asumsi ini sekarang akan dicocokkan dengan kolom "Module"
   } | null; 
 }
 
@@ -26,9 +26,6 @@ export default function DashboardPage({user}: UserProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [sortBy, setSortBy] = useState('default'); 
-  const [isOpen, setIsOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userData, setUserData] = useState(null);
   const [isModalVisible, setModalVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [percentage, setPercentage] = useState('');
@@ -36,7 +33,8 @@ export default function DashboardPage({user}: UserProps) {
 
   const fetchTasks = async () => {
     try {
-      const response = await fetch('http://192.168.0.117:3000/api/sprint');
+      // Sesuaikan endpoint ini dengan route.ts yang baru kamu buat
+      const response = await fetch('http://10.116.191.10:3000/api/sprint');
       const data = await response.json();
       setTasks(data.dataMentah); 
       setTabName(data.namaTabYangDibaca);
@@ -58,15 +56,13 @@ export default function DashboardPage({user}: UserProps) {
     try {
       const formattedPercentage = percentage ? `${percentage}%` : '0%';
       const payload = {
-        taskId: selectedTask?.taskId,
+        code: selectedTask?.code, // Menggunakan 'code' sesuai mapping baru
         taskName: selectedTask?.taskName,
-        pic: user?.username, // Mengambil nama user yang sedang login
+        pic: user?.username, 
         percentage: formattedPercentage, 
         remark: remark 
       };
 
-      // 2. Tembak API Next.js menggunakan method POST
-      // (Asumsi kita buat endpoint baru bernama /api/timesheet)
       const response = await fetch('http://192.168.0.117:3000/api/timesheet', {
         method: 'POST',
         headers: {
@@ -78,13 +74,8 @@ export default function DashboardPage({user}: UserProps) {
       const result = await response.json();
 
       if (response.ok) {
-        console.log("Data yang mau disimpan:", {
-            taskId: selectedTask?.taskId,
-            percentage: formattedPercentage,
-            remark: remark
-        });
-
-        setModalVisible(false); // Tutup modal
+        console.log("Data yang mau disimpan:", payload);
+        setModalVisible(false);
       } else {
         console.error("Gagal simpan:", result);
       }
@@ -94,42 +85,36 @@ export default function DashboardPage({user}: UserProps) {
   };
 
   const processedTasks = tasks
-    .filter((item: any) => item.department === user?.department)
     .filter((item: any) => {
-      // 1. Fitur Search
-      if (!searchText) return true; // Kalau kolom search kosong, tampilkan semua
+      if (!searchText) return true;
       const lowerSearch = searchText.toLowerCase();
       
-      // Cari kecocokan di nama task, ID, atau nama developer
+      // Cari kecocokan di nama task, Code (ID), atau nama developer
       return (
         item.taskName?.toLowerCase().includes(lowerSearch) ||
-        item.taskId?.toLowerCase().includes(lowerSearch) ||
+        item.code?.toLowerCase().includes(lowerSearch) ||
         item.developer?.toLowerCase().includes(lowerSearch)
       );
-        
     })
     .sort((a: any, b: any) => {
-      // 2. Fitur Sort
       if (sortBy === 'status') {
-        // Urutkan: Yang belum DONE taruh di atas
         if (a.status === 'DONE' && b.status !== 'DONE') return 1;
         if (a.status !== 'DONE' && b.status === 'DONE') return -1;
         return 0;
       }
       if (sortBy === 'department') {
-        // Urutkan berdasarkan abjad departemen (A-Z)
-        return a.department?.localeCompare(b.department || '');
+        // Mengurutkan berdasarkan kolom 'module'
+        return a.module?.localeCompare(b.module || '');
       }
-      return 0; // 'default': biarkan urutan asli dari Sheets
+      return 0;
     });
 
   useEffect(() => {
     fetchTasks();
-    console.log(user);
   }, []);
 
+  // Penamaan fungsi dipertahankan, tapi parameter yang masuk adalah 'module'
   const getDeptStyle = (deptName: string) => {
-    // Ubah ke huruf kecil semua agar pengecekan lebih aman (pm = PM = Pm)
     const name = deptName?.toLowerCase() || '';
 
     switch (name) {
@@ -138,11 +123,11 @@ export default function DashboardPage({user}: UserProps) {
       case 'fi':
       case 'finance':
         return styles.deptFI;
-      case 'SCM':
+      case 'scm':
           return styles.deptIT;
-      case 'HCM':
+      case 'hcm':
       default:
-        return styles.deptDefault; // Warna abu-abu kalau department tidak dikenali
+        return styles.deptDefault;
     }
   };
 
@@ -152,30 +137,30 @@ export default function DashboardPage({user}: UserProps) {
       onPress={() => openUpdateModal(item)}
     >
       
-      {/* Header Card: Dept & Status */}
+      {/* Header Card: Module & Status */}
       <View style={styles.cardHeader}>
-        <Text style={[styles.deptBadge, getDeptStyle(item.department)]}>
-          {item.department}
+        <Text style={[styles.deptBadge, getDeptStyle(item.module)]}>
+          {item.module || 'Unknown'}
         </Text>
         <Text style={[
           styles.statusBadge, 
           item.status === 'DONE' ? styles.statusDone : styles.statusProgress
         ]}>
-          {item.status}
+          {item.status || 'OPEN'}
         </Text>
       </View>
       
-      {/* Body Card: ID & Name */}
-      <Text style={styles.taskId}>{item.taskId}</Text>
+      {/* Body Card: Code & Name */}
+      <Text style={styles.taskId}>{item.code}</Text>
       <Text style={styles.taskName}>{item.taskName}</Text>
       
-      {/* Footer Card: Assignee & Story Points */}
+      {/* Footer Card: Assignee & Kompleksitas */}
       <View style={styles.cardFooter}>
         <Text style={styles.assignee}>
           👤 {item.developer || 'Unassigned'}
         </Text>
-        <Text style={styles.storyPoints}>
-          SP: {item.progressPoints} / {item.storyPoints}
+        <Text style={styles.kompleksitas}>
+          ⏱ {item.kompleksitas || '-'}
         </Text>
       </View>
       
@@ -187,7 +172,7 @@ export default function DashboardPage({user}: UserProps) {
       <View style={styles.container}>
         
         <Text style={styles.headerTitle}>
-          Sprint Dashboard
+          Tasklist Dashboard
         </Text>
 
         <Text style={styles.welcome}>
@@ -196,7 +181,7 @@ export default function DashboardPage({user}: UserProps) {
 
         <TextInput
           style={styles.searchInput}
-          placeholder="Cari tugas, ID, atau developer..."
+          placeholder="Cari tugas, Kode, atau developer..."
           value={searchText}
           onChangeText={setSearchText}
           placeholderTextColor="#9CA3AF"
@@ -216,6 +201,12 @@ export default function DashboardPage({user}: UserProps) {
           >
             <Text style={[styles.sortBtnText, sortBy === 'status' && styles.sortBtnTextActive]}>Status</Text>
           </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.sortBtn, sortBy === 'department' && styles.sortBtnActive]} 
+            onPress={() => setSortBy('department')}
+          >
+            <Text style={[styles.sortBtnText, sortBy === 'department' && styles.sortBtnTextActive]}>Module</Text>
+          </TouchableOpacity>
         </View>
         
         {isLoading ? (
@@ -226,7 +217,7 @@ export default function DashboardPage({user}: UserProps) {
         ) : (
           <FlatList
             data={processedTasks}
-            keyExtractor={(item, index) => item.taskId + index}
+            keyExtractor={(item, index) => (item.code || '') + index}
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -247,7 +238,6 @@ export default function DashboardPage({user}: UserProps) {
             <Text style={styles.modalTitle}>Update Task</Text>
             <Text style={styles.modalSubtitle}>{selectedTask?.taskName}</Text>
 
-            {/* Input work percentage */}
             <Text style={styles.inputLabel}>Persentase Penyelesaian</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
               <TextInput
@@ -261,18 +251,16 @@ export default function DashboardPage({user}: UserProps) {
               <Text style={{ fontSize: 16, fontWeight: 'bold', marginLeft: 10 }}>%</Text>
             </View>
 
-            {/* Input Remark */}
             <Text style={styles.inputLabel}>Remark / Catatan</Text>
             <TextInput
               style={[styles.textInput, styles.textArea]}
               placeholder="Tambahkan catatan pengerjaan..."
               value={remark}
               onChangeText={setRemark}
-              multiline={true} // Agar bisa ketik panjang/enter
+              multiline={true} 
               numberOfLines={4}
             />
 
-            {/* Tombol Action */}
             <View style={styles.buttonContainer}>
               <Button title="Batal" color="red" onPress={() => setModalVisible(false)} />
               <Button title="Simpan" onPress={handleSaveUpdate} />
@@ -286,6 +274,8 @@ export default function DashboardPage({user}: UserProps) {
 }
 
 const styles = StyleSheet.create({
+  // ... (Gunakan style yang sama persis seperti kode aslimu, 
+  // hanya ubah/tambahkan properti di bawah ini)
   searchInput: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -314,7 +304,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   sortBtnActive: {
-    backgroundColor: '#2563EB', // Biru saat aktif
+    backgroundColor: '#2563EB',
   },
   sortBtnText: {
     fontSize: 12,
@@ -322,29 +312,29 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   sortBtnTextActive: {
-    color: '#FFFFFF', // Putih saat aktif
+    color: '#FFFFFF',
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#F9FAFB', // gray-50
-    paddingTop: Platform.OS === 'android' ? 36 : 0, // pt-9
+    backgroundColor: '#F9FAFB', 
+    paddingTop: Platform.OS === 'android' ? 36 : 0, 
   },
   container: {
     flex: 1,
-    paddingHorizontal: 16, // px-4
+    paddingHorizontal: 16, 
   },
   headerTitle: {
-    fontSize: 24, // text-2xl
+    fontSize: 24, 
     fontWeight: 'bold',
-    color: '#1F2937', // gray-800
-    marginBottom: 16, // mb-4
-    marginTop: 8, // mt-2
+    color: '#1F2937', 
+    marginBottom: 16, 
+    marginTop: 8, 
   },
   welcome: {
     fontSize: 16, 
-    color: '#1F2937', // gray-800
-    marginBottom: 16, // mb-4
-    marginTop: -10, // mt-2
+    color: '#1F2937', 
+    marginBottom: 16, 
+    marginTop: -10, 
   },
   loadingContainer: {
     flex: 1,
@@ -353,38 +343,36 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#6B7280', // gray-500
+    color: '#6B7280', 
   },
   listContent: {
     paddingBottom: 20,
   },
   card: {
-    backgroundColor: '#FFFFFF', // bg-white
-    borderRadius: 12, // rounded-xl
-    padding: 16, // p-4
-    marginBottom: 12, // mb-3
-    // Shadow for iOS
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 12, 
+    padding: 16, 
+    marginBottom: 12, 
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    // Elevation for Android
     elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8, // mb-2
+    marginBottom: 8, 
   },
   deptBadge: {
-    backgroundColor: '#E5E7EB', // bg-gray-200
-    color: '#374151', // text-gray-700
-    paddingHorizontal: 8, // px-2
-    paddingVertical: 4, // py-1
-    borderRadius: 6, // rounded-md
-    fontSize: 12, // text-xs
-    fontWeight: '600', // font-semibold
+    backgroundColor: '#E5E7EB', 
+    color: '#374151', 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    borderRadius: 6, 
+    fontSize: 12, 
+    fontWeight: '600', 
   },
   deptPM: {
     backgroundColor: '#FEE2E2', 
@@ -410,53 +398,53 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   statusDone: {
-    backgroundColor: '#DBEAFE', // bg-blue-100
-    color: '#1E40AF', // text-blue-800
+    backgroundColor: '#DBEAFE', 
+    color: '#1E40AF', 
   },
   statusProgress: {
-    backgroundColor: '#D1FAE5', // bg-emerald-100
-    color: '#065F46', // text-emerald-800
+    backgroundColor: '#D1FAE5', 
+    color: '#065F46', 
   },
   taskId: {
-    fontSize: 12, // text-xs
-    color: '#6B7280', // text-gray-500
-    marginBottom: 4, // mb-1
+    fontSize: 12, 
+    color: '#6B7280', 
+    marginBottom: 4, 
   },
   taskName: {
-    fontSize: 16, // text-base
+    fontSize: 16, 
     fontWeight: 'bold',
-    color: '#111827', // text-gray-900
-    marginBottom: 12, // mb-3
+    color: '#111827', 
+    marginBottom: 12, 
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6', // border-gray-100
-    paddingTop: 12, // pt-3
+    borderTopColor: '#F3F4F6', 
+    paddingTop: 12, 
   },
   assignee: {
-    fontSize: 14, // text-sm
-    color: '#4B5563', // text-gray-600
+    fontSize: 14, 
+    color: '#4B5563', 
     flex: 1,
   },
-  storyPoints: {
-    fontSize: 14,
+  kompleksitas: { // Menggantikan storyPoints
+    fontSize: 12,
     fontWeight: '600',
-    color: '#2563EB', // text-blue-600
+    color: '#D97706', // Warna oranye (amber-600) untuk kompleksitas
   },
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Efek gelap di belakang modal
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', 
     padding: 20,
   },
   modalContent: {
     backgroundColor: 'white',
     borderRadius: 10,
     padding: 20,
-    elevation: 5, // Shadow untuk Android
+    elevation: 5, 
   },
   modalTitle: {
     fontSize: 18,
@@ -484,7 +472,7 @@ const styles = StyleSheet.create({
   },
   textArea: {
     height: 80,
-    textAlignVertical: 'top', // Penting untuk Android agar teks mulai dari atas
+    textAlignVertical: 'top', 
   },
   buttonContainer: {
     flexDirection: 'row',

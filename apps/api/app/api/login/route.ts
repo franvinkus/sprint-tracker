@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID!, serviceAccountAuth);
     await doc.loadInfo(); 
 
-    const sheet = doc.sheetsByTitle['Users']; 
+    const sheet = doc.sheetsByTitle['USERS']; 
     
     if (!sheet) {
       return NextResponse.json(
