@@ -1,17 +1,49 @@
-import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import LoginPage from './src/components/LoginPage'; // Sesuaikan path folder-mu
 import Dashboard from'./src/screen/DashboardPage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const savedSession = await AsyncStorage.getItem('userSession');
+        if (savedSession) {
+          setUserData(JSON.parse(savedSession));
+          setIsLoggedIn(true);
+        }
+      } catch (e) {
+        console.error("Gagal membaca session", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkSession();
+  }, []);
 
   // Fungsi ini dipanggil dari dalam LoginPage saat fetch sukses
-  const handleLoginSuccess = (data: any) => {
-    setUserData(data); // Menyimpan data user, misalnya untuk filter department nanti
+  const handleLoginSuccess = async (data: any) => {
+    setUserData(data); 
     setIsLoggedIn(true);
+    try {
+      await AsyncStorage.setItem('userSession', JSON.stringify(data));
+    } catch (e) {
+      console.error("Gagal menyimpan session", e);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
 
   if (!isLoggedIn) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;

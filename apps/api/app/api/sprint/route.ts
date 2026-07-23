@@ -48,7 +48,7 @@ export async function GET() {
     }));
 
     const cleanTaskList = taskList.filter((task: any) => {
-      return task.code && task.code.includes('/');
+      return task.code && (task.code.includes('/') || task.code.includes('-'));
     });
 
     return NextResponse.json({ 
@@ -68,43 +68,42 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID!, getAuth());
-    await doc.loadInfo(); 
+    const range = `'TASK LIST'!B9:V`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
 
-    const sheet = doc.sheetsByTitle['TASK LIST'];
-    
-    if (!sheet) {
-      return NextResponse.json(
-        { success: false, message: 'Tab TASK LIST tidak ditemukan di Sheets' }, 
-        { status: 404 }
-      );
-    }
+    const rowData = [
+      '',
+      body.code || '',                     // Column B: CODE
+      body.reporter || '',                 // Column C: Reporter
+      body.assignee || body.developer || '', // Column D: Developer (bisa dari assignee modal)
+      body.title || body.task || body.taskName || '',                 // Column E: TASK NAME
+      body.description || body.subjectMail || '', // Column F: Subject / Description
+      body.supportTicket || '',            // Column G: Support Ticket
+      body.module || '',                   // Column H: Module
+      body.subModule || '',                // Column I: Sub Module
+      body.kompleksitas || '',             // Column J: Kompleksitas
+      body.issueCategory || '',            // Column K: Issue Category
+      body.status || 'TO DO',              // Column L: STATUS
+      body.submissionDate || '',           // Column M: Submission Date
+      body.completionTarget || '',         // Column N: Completion Target
+      body.actualStart || '',              // Column O: Actual Start
+      body.actualCompletion || '',         // Column P: Actual Completion
+      body.holdDate || '',                 // Column Q: Hold Date
+      body.holdDuration || '',             // Column R: Hold Duration
+      body.slaStatus || body.sla || '',    // Column S: SLA
+      body.taskAging || '',                // Column T: TASK AGING
+      body.channelSource || '',            // Column U: Channel Source
+      body.remark || ''                    // Column V: REMARK
+    ];
 
-    await sheet.addRow([
-      body.code || '',                     // Column 1: CODE
-      body.reporter || '',                 // Column 2: Reporter
-      body.assignee || body.developer || '', // Column 3: Developer (bisa dari assignee modal)
-      body.taskName || '',                 // Column 4: TASK NAME
-      body.description || body.subjectMail || '', // Column 5: Subject / Description
-      body.supportTicket || '',            // Column 6: Support Ticket
-      body.module || '',                   // Column 7: Module
-      body.subModule || '',                // Column 8: Sub Module
-      body.kompleksitas || '',             // Column 9: Kompleksitas
-      body.issueCategory || '',            // Column 10: Issue Category
-      body.status || 'TO DO',              // Column 11: STATUS
-      body.submissionDate || '',           // Column 12: Submission Date
-      body.completionTarget || '',         // Column 13: Completion Target
-      body.actualStart || '',              // Column 14: Actual Start
-      body.actualCompletion || '',         // Column 15: Actual Completion
-      body.holdDate || '',                 // Column 16: Hold Date
-      body.holdDuration || '',             // Column 17: Hold Duration
-      body.slaStatus || body.sla || '',    // Column 18: SLA
-      body.taskAging || '',                // Column 19: TASK AGING
-      body.channelSource || '',            // Column 20: Channel Source
-      body.remark || ''                    // Column 21: REMARK
-    ]);
+    await getAuth().request({
+      url,
+      method: 'POST',
+      data: {
+        values: [rowData]
+      }
+    });
 
-    
     return NextResponse.json({ 
       status: 'Success',
       message: 'Task baru berhasil ditambahkan' 

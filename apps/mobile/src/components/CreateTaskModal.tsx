@@ -14,9 +14,10 @@ interface CreateTaskModalProps {
   visible: boolean;
   onClose: () => void;
   onSave: (taskData: any) => void;
+  lastTaskCode?: string;
 }
 
-export default function CreateTaskModal({ visible, onClose, onSave }: CreateTaskModalProps) {
+export default function CreateTaskModal({ visible, onClose, onSave, lastTaskCode }: CreateTaskModalProps) {
   // State untuk form
   const [code, setCode] = useState('');
   const [ticketType, setTicketType] = useState('');
@@ -37,22 +38,53 @@ export default function CreateTaskModal({ visible, onClose, onSave }: CreateTask
   // Data dummy assignee (kamu bisa ganti ambil dari API nanti)
   const ASSIGNEE_OPTIONS = ['Budi (Developer)', 'Siti (Konsultan)', 'Agus (ABAP)'];
 
+  const createCode = () => {
+    let prefix = 'TSK'; // Default
+    if (ticketType === 'Service Request') prefix = 'SR';
+    else if (ticketType === 'Bug Fixing') prefix = 'BF';
+    else if (ticketType === 'Incident') prefix = 'INC';
+
+    const date = new Date();
+    const year = date.getFullYear(); // 2026
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // '07'
+    const yearMonth = `${year}${month}`;
+
+    let nextSequence = 1; 
+
+    if (lastTaskCode) {
+      const parts = lastTaskCode.split('-');
+
+      if (parts.length === 3 && parts[1] === yearMonth) {
+        const lastNumber = parseInt(parts[2], 10);
+        if (!isNaN(lastNumber)) {
+          nextSequence = lastNumber + 1; 
+        }
+      }
+    }
+
+    const sequenceString = String(nextSequence).padStart(3, '0');
+    return `${prefix}-${yearMonth}-${sequenceString}`;
+  }
+
   const handleSave = () => {
     // Validasi field mandatori
-    if (!code || !ticketType || !eta) {
-      alert("Field CODE, Support Ticket, dan ETA wajib diisi!");
+    if ( !ticketType || !eta) {
+      alert("Field Support Ticket dan ETA wajib diisi!");
       return;
     }
 
+    const finalCode = code || createCode();
+
     const payload = {
-      code,
+      code: finalCode,
       supportTicket: ticketType,
       module,
       slaStatus,
       status,
       eta: parseFloat(eta), // Pastikan formatnya desimal
       assignee,
-      description
+      description,
+      title,
     };
 
     onSave(payload);
@@ -107,13 +139,13 @@ export default function CreateTaskModal({ visible, onClose, onSave }: CreateTask
           {/* ScrollView agar form yang panjang tidak terpotong di layar kecil */}
           <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollForm}>
             
-            <Text style={styles.inputLabel}>CODE (Mandatori) *</Text>
+            {/* <Text style={styles.inputLabel}>CODE (Mandatori) *</Text>
             <TextInput
               style={styles.textInput}
               placeholder="Contoh: SR-202607-001"
               value={code}
               onChangeText={setCode}
-            />
+            /> */}
 
             <Text style={styles.inputLabel}>Support Ticket (Mandatori) *</Text>
             {renderChips(TICKET_OPTIONS, ticketType, setTicketType)}

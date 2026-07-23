@@ -12,16 +12,17 @@ import {
   Modal,
   Button
 } from 'react-native';
+import CreateTaskModal from '../components/CreateTaskModal';
 
 interface UserProps {
   user: {
     username: string;
-    department: string; // Asumsi ini sekarang akan dicocokkan dengan kolom "Module"
+    department: string;
   } | null; 
 }
 
 export default function DashboardPage({user}: UserProps) {
-  const [tasks, setTasks] = useState([]);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [tabName, setTabName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -30,11 +31,13 @@ export default function DashboardPage({user}: UserProps) {
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [percentage, setPercentage] = useState('');
   const [remark, setRemark] = useState('');
+  const [isCreateModalVisible, setCreateModalVisible] = useState(false);
+
+  const latestCode = tasks.length > 0 ? tasks[0].code : undefined;
 
   const fetchTasks = async () => {
     try {
-      // Sesuaikan endpoint ini dengan route.ts yang baru kamu buat
-      const response = await fetch('http://10.116.191.10:3000/api/sprint');
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_ADDRESS}/api/sprint`);
       const data = await response.json();
       setTasks(data.dataMentah); 
       setTabName(data.namaTabYangDibaca);
@@ -52,18 +55,56 @@ export default function DashboardPage({user}: UserProps) {
     setModalVisible(true);
   };
 
+  const openInsertModal = () =>{
+    setCreateModalVisible(true);
+  }
+
+  const handleSaveNewTask = async (taskData: any) => {
+    console.log("Data yang dikirim dari modal:", taskData);
+    try {
+      console.log("Mengirim data ke Google Sheets...", taskData);
+
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_ADDRESS}/api/sprint`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(taskData),
+      });
+
+      const result = await response.json();
+
+      console.log("Status Code:", response.status);
+      console.log("Response dari Backend:", result);
+
+      if (response.ok) {
+        setTasks((prevTasks) => [...prevTasks, taskData]); 
+        
+        setCreateModalVisible(false);
+        alert("Task berhasil ditambahkan!");
+      } else {
+        alert(`Gagal menyimpan task: ${result.message || 'Error tidak diketahui'}`);
+      }
+
+    } catch (error) {
+      console.error("Error POST data:", error);
+      alert("Terjadi kesalahan jaringan.");
+    }
+    setCreateModalVisible(false);
+  };
+
   const handleSaveUpdate = async () => {
     try {
       const formattedPercentage = percentage ? `${percentage}%` : '0%';
       const payload = {
-        code: selectedTask?.code, // Menggunakan 'code' sesuai mapping baru
+        code: selectedTask?.code, 
         taskName: selectedTask?.taskName,
         pic: user?.username, 
         percentage: formattedPercentage, 
         remark: remark 
       };
 
-      const response = await fetch('http://192.168.0.117:3000/api/timesheet', {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_ADDRESS}/api/timesheet`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -88,8 +129,7 @@ export default function DashboardPage({user}: UserProps) {
     .filter((item: any) => {
       if (!searchText) return true;
       const lowerSearch = searchText.toLowerCase();
-      
-      // Cari kecocokan di nama task, Code (ID), atau nama developer
+
       return (
         item.taskName?.toLowerCase().includes(lowerSearch) ||
         item.code?.toLowerCase().includes(lowerSearch) ||
@@ -103,7 +143,6 @@ export default function DashboardPage({user}: UserProps) {
         return 0;
       }
       if (sortBy === 'department') {
-        // Mengurutkan berdasarkan kolom 'module'
         return a.module?.localeCompare(b.module || '');
       }
       return 0;
@@ -113,7 +152,6 @@ export default function DashboardPage({user}: UserProps) {
     fetchTasks();
   }, []);
 
-  // Penamaan fungsi dipertahankan, tapi parameter yang masuk adalah 'module'
   const getDeptStyle = (deptName: string) => {
     const name = deptName?.toLowerCase() || '';
 
@@ -170,6 +208,14 @@ export default function DashboardPage({user}: UserProps) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
+
+        <TouchableOpacity 
+          style={styles.insertButton} 
+          onPress={openInsertModal}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+        >
+          <Text style={styles.insertButtonText}>+</Text>
+        </TouchableOpacity>
         
         <Text style={styles.headerTitle}>
           Tasklist Dashboard
@@ -269,6 +315,12 @@ export default function DashboardPage({user}: UserProps) {
           </View>
         </View>
       </Modal>
+
+      <CreateTaskModal 
+        visible={isCreateModalVisible} 
+        onClose={() => setCreateModalVisible(false)} 
+        onSave={handleSaveNewTask} 
+      />
     </SafeAreaView>
   );
 }
@@ -478,5 +530,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 10,
-  }
+  },
+  insertButton: {
+    position: 'absolute',
+    bottom: 50,
+    right: 50,
+    backgroundColor: '#2563EB', 
+    width: 60,
+    height: 60,
+    borderRadius: 30, 
+    justifyContent: 'center', 
+    alignItems: 'center',     
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    elevation: 5, 
+    zIndex:1000,
+  },
+  insertButtonText: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: 'bold',
+    marginTop: Platform.OS === 'ios' ? -2 : -4, // Sedikit penyesuaian agar posisi '+' benar-benar di tengah
+  },
 });
